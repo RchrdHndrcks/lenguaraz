@@ -104,8 +104,10 @@ Segment (JSONL line and SSE payload for finals):
  "error": ""}
 ```
 
-`t0`/`t1` are seconds since the room's session started (from bytes of
-audio received), used for VTT/SRT timing.
+`t0`/`t1` are seconds on the room's audio clock: the ASR engine reports each
+event's position as bytes of audio it has consumed, and the room offsets it
+by the end of the previous operator session, so timings keep increasing
+across reconnects. Used for VTT/SRT timing.
 
 SSE events: `interim` (`{text}`, original language only), `final`
 (Segment), `status` (`{live: bool}`). On connect the server replays the
@@ -126,12 +128,16 @@ ring buffer (last 50 finals, rehydrated from JSONL on restart).
   connection status, start/stop. AudioWorklet downsamples to 16 kHz PCM16 and
   sends ~100 ms chunks.
 - `/admin` (token) — per room: live/idle, operator connected, viewers,
-  last-segment age, avg latency, error count, export links.
+  last-segment age, avg pipeline latency (ASR final received → segment
+  published, i.e. translation + storage), error count, export links.
 
 ## Error handling
 
-- Live session drop or session-limit expiry: reconnect with backoff; buffer up
-  to ~5 s of audio during reconnect; emit `status`.
+- Live session drop or session-limit expiry: rotate the session proactively
+  at 9 min and reconnect with backoff on failures. Session resumption is not
+  used: pure transcription carries no conversational state worth resuming.
+  Audio arriving during a reconnect waits in the ingest channel and the
+  operator's WebSocket (backpressure) and is sent once the new session is up.
 - Translation failure: publish segment with original text and `error` set;
   viewers of the target language see the original with a marker.
 - Slow SSE subscriber: buffered channel per subscriber; if full, drop the
