@@ -29,7 +29,7 @@ func main() {
 	server := flag.String("server", envOr("LENGUARAZ_URL", "http://localhost:8080"), "Lenguaraz base URL (env LENGUARAZ_URL)")
 	roomID := flag.String("room", "", "room id from rooms.yaml (required)")
 	token := flag.String("token", os.Getenv("ADMIN_TOKEN"), "operator token (env ADMIN_TOKEN)")
-	lang := flag.String("lang", "", "language spoken on stage: en, es or pt (default: the room's current one)")
+	lang := flag.String("lang", "", "language spoken on stage: en, es, pt, fr, de or it (default: the room's current one)")
 	talk := flag.String("talk", "", "title of the talk; a new title starts a new talk in the transcript")
 	input := flag.String("i", "", "input for ffmpeg: a URL (srt://, rtmp://, https://…m3u8), a device or a file; empty reads PCM from stdin")
 	realtime := flag.Bool("realtime", false, "pace the input at playback speed (for files)")

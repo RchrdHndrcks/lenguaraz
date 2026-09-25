@@ -141,6 +141,10 @@ input[type=file]::file-selector-button { min-height: 44px; margin-right: 12px; p
 .langs button { min-height: 44px; padding: 6px 8px; font-size: 1rem; border: 0; border-bottom: 4px solid transparent; background: none; color: var(--link); cursor: pointer; text-decoration: underline; text-underline-offset: .15em; }
 .langs button[aria-pressed="true"] { color: var(--text); font-weight: 700; border-bottom-color: var(--primary); text-decoration: none; }
 .controls .button { min-height: 44px; padding: 6px 14px; }
+.controls .actions { display: flex; gap: 8px; }
+.listen .waves { opacity: .35; }
+.listen[aria-pressed="true"] { border-color: var(--live); color: var(--live); }
+.listen[aria-pressed="true"] .waves { opacity: 1; }
 
 .stage { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
 #captions { max-width: 36em; letter-spacing: var(--tracking); }

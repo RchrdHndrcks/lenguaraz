@@ -11,6 +11,8 @@ Hecho para la Vibeathon de [Nerdearla](https://nerdear.la) 2026.
 
 *English: [README.md](README.md).*
 
+![Una charla en inglés llega traducida al español a cada celular de la sala](docs/screenshots/hero.png)
+
 ## Qué resuelve
 
 - **Una sala por escenario, todas en paralelo.** Cada sala es una sesión de
@@ -31,6 +33,12 @@ Hecho para la Vibeathon de [Nerdearla](https://nerdear.la) 2026.
   oscuro y alto contraste, espaciado amplio para dislexia o baja visión, modo
   bilingüe (traducción + original) y la interfaz en el idioma que eligió cada
   persona.
+- **Modo Escuchar:** con auriculares, el celular de cada persona lee en voz
+  alta cada línea nueva en el idioma elegido, con las voces del propio
+  dispositivo. Los subtítulos se vuelven interpretación simultánea para
+  personas ciegas o con baja visión, o para quien prefiera escuchar. Sin
+  costo de servidor, nada sale del teléfono, y no se atrasa: si la charla va
+  más rápido que la voz, lee más rápido o saltea a lo último.
 - **Glosario por sala:** nombres propios y términos técnicos se reconocen
   mejor y nunca se traducen.
 - **Transcripción de cada charla** en VTT, SRT o TXT, en cualquier idioma,
