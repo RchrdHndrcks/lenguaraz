@@ -24,7 +24,7 @@ import (
 )
 
 func main() {
-	lang := flag.String("lang", "en", "spoken language: en, es or pt")
+	lang := flag.String("lang", "en", "spoken language: en, es, pt, fr, de or it")
 	model := flag.String("model", "", "Live model (default "+asr.DefaultModel+")")
 	debug := flag.Bool("debug", false, "log raw server messages")
 	flag.Parse()

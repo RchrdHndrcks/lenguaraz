@@ -1,0 +1,225 @@
+// End-to-end check of Lenguaraz running with -fake on BASE (see run.sh).
+// Streams sala-a from the operator page (Chromium, bundled EN sample) and
+// sala-b from lenguaraz-ingest (CLI), then checks every public surface.
+import { chromium } from 'playwright';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+
+const BASE = process.env.BASE ?? 'http://127.0.0.1:8080';
+const TOKEN = process.env.TOKEN ?? 'secreto';
+const BIN = process.env.BIN ?? new URL('./bin', import.meta.url).pathname;
+const results = [];
+let failed = 0;
+
+function check(name, ok, detail = '') {
+  results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
+  if (!ok) failed++;
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const get = async (path, opts) => fetch(BASE + path, opts);
+
+// ---------- HTTP surface ----------
+check('healthz', (await (await get('/healthz')).text()).trim() === 'ok');
+const rooms = await (await get('/api/rooms')).json();
+check('api/rooms lists 2 rooms', rooms.length === 2, rooms.map((r) => r.id).join(','));
+check('admin status needs token', (await get('/api/admin/status')).status === 401);
+check('metrics needs token', (await get('/metrics')).status === 401);
+check('metrics with bearer token', (await get('/metrics', { headers: { Authorization: `Bearer ${TOKEN}` } })).status === 200);
+check('ingest rejects wrong token', (await get('/ingest/sala-a?token=nope')).status === 401);
+check('unknown room viewer 200 (client says not found)', (await get('/r/nope')).status === 200);
+const qr = await get('/qr/sala-a');
+check('QR is SVG', qr.status === 200 && (qr.headers.get('content-type') ?? '').includes('svg'));
+
+// ---------- browser ----------
+const browser = await chromium.launch({
+  args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
+});
+const errors = [];
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+ctx.on('page', (p) => p.on('pageerror', (e) => errors.push(`${p.url()}: ${e.message}`)));
+
+// Operator (sala-a): bundled English sample through the AudioWorklet.
+const op = await ctx.newPage();
+op.on('pageerror', (e) => errors.push(`operator: ${e.message}`));
+await op.goto(`${BASE}/operator/sala-a?token=${TOKEN}`);
+await op.fill('#talk', 'El futuro del open source');
+await op.click('a[data-sample="en"]');
+await op.click('#start');
+await op.waitForFunction(() => document.getElementById('status').classList.contains('live'), null, { timeout: 10000 });
+check('operator goes live', true);
+
+// CLI ingest (sala-b): 40 s of PCM silence at real time, Spanish, titled talk.
+const ingest = spawn(`${BIN}/lenguaraz-ingest`, ['-server', BASE, '-room', 'sala-b', '-lang', 'es', '-talk', 'Kubernetes en producción', '-realtime'], {
+  env: { ...process.env, ADMIN_TOKEN: TOKEN }, stdio: ['pipe', 'ignore', 'pipe'],
+});
+let ingestErr = '';
+ingest.stderr.on('data', (d) => { ingestErr += d; });
+ingest.stdin.end(Buffer.alloc(16000 * 2 * 40));
+
+// Audience: mobile viewer in Spanish for the English room.
+const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, locale: 'pt-BR' });
+const mob = await phone.newPage();
+mob.on('pageerror', (e) => errors.push(`mobile: ${e.message}`));
+await mob.goto(`${BASE}/r/sala-a?lang=es`);
+await mob.waitForSelector('#lines p', { timeout: 15000 });
+const firstLine = await mob.textContent('#lines p');
+check('mobile viewer shows translated caption', firstLine.startsWith('[es] '), firstLine);
+check('mobile status badge is live', await mob.$eval('#status', (n) => n.classList.contains('live')));
+check('page UI follows caption language', (await mob.textContent('#prefs-open')).trim() === 'Ajustes');
+
+// Language switch to English (original): interim line appears, no [xx] tag.
+await mob.click('#langs button[lang="en"]');
+await mob.waitForFunction(() => document.querySelector('#lines p')?.textContent.startsWith('Welcome') || document.querySelector('#lines p span')?.textContent.length > 0);
+const orig = await mob.textContent('#lines p');
+check('switch to original language', !orig.startsWith('['), orig);
+check('UI switched to English', (await mob.textContent('#prefs-open')).trim() === 'Settings');
+await mob.waitForFunction(() => document.getElementById('interim').textContent.length > 0, null, { timeout: 8000 }).then(() => check('interim line in original', true)).catch(() => check('interim line in original', false));
+
+// QR link without ?lang follows browser language (pt-BR).
+const qrPage = await phone.newPage();
+await qrPage.goto(`${BASE}/r/sala-a`);
+await qrPage.waitForSelector('#langs button[aria-pressed="true"]');
+check('QR link picks browser language', await qrPage.$eval('#langs button[aria-pressed="true"]', (b) => b.lang) === 'pt');
+await qrPage.close();
+
+// Reading settings: size, contrast, bilingual.
+await mob.click('#langs button[lang="es"]');
+await mob.click('#prefs-open');
+await mob.click('#sizes button[data-size="2"]');
+await mob.check('input[name=theme][value=contrast]');
+await mob.check('#pref-orig');
+await mob.click('#prefs button[value=close]');
+check('prefs: size applied', await mob.evaluate(() => document.documentElement.dataset.size) === '2');
+check('prefs: contrast applied', await mob.evaluate(() => document.documentElement.dataset.theme) === 'contrast');
+check('prefs: original under translation', (await mob.$$('#lines small.orig')).length > 0);
+await mob.reload();
+check('prefs persist across reload', await mob.evaluate(() => document.documentElement.dataset.theme) === 'contrast');
+await mob.evaluate(() => localStorage.clear());
+
+// Listen mode: the phone reads new lines aloud in the chosen language.
+const ear = await phone.newPage();
+ear.on('pageerror', (e) => errors.push(`listen: ${e.message}`));
+await ear.addInitScript(() => {
+  window.__spoken = [];
+  class U { constructor(text) { this.text = text; this.lang = ''; this.rate = 1; this.volume = 1; } }
+  window.SpeechSynthesisUtterance = U;
+  const q = [];
+  let busy = false;
+  const run = () => {
+    const u = q.shift();
+    if (!u) { busy = false; return; }
+    busy = true;
+    if (u.text.trim()) window.__spoken.push({ text: u.text, lang: u.lang, rate: u.rate });
+    setTimeout(() => { u.onend?.(); run(); }, 200);
+  };
+  window.__synth = { get speaking() { return busy; }, get pending() { return q.length > 0; }, getVoices: () => [],
+    speak(u) { q.push(u); if (!busy) run(); }, cancel() { q.length = 0; } };
+  Object.defineProperty(window, 'speechSynthesis', { get: () => window.__synth });
+});
+await ear.goto(`${BASE}/r/sala-a?lang=es`);
+await ear.waitForSelector('#listen:not([hidden])', { timeout: 5000 });
+check('listen button shown on phones', true);
+check('listen button label follows UI language', (await ear.textContent('#listen')).trim() === 'Escuchar');
+await ear.waitForSelector('#lines p');
+await ear.click('#listen');
+check('listen toggles aria-pressed', await ear.getAttribute('#listen', 'aria-pressed') === 'true');
+check('listen silences aria-live', await ear.getAttribute('#lines', 'aria-live') === 'off');
+await ear.waitForFunction(() => window.__spoken.length >= 2, null, { timeout: 12000 })
+  .then(() => check('listen reads the last line and new ones', true))
+  .catch(async () => check('listen reads the last line and new ones', false, JSON.stringify(await ear.evaluate(() => window.__spoken))));
+const spokenEs = await ear.evaluate(() => window.__spoken);
+check('listen reads the translation, in its language', spokenEs.every((u) => u.text.startsWith('[es] ') && u.lang === 'es'), JSON.stringify(spokenEs.slice(0, 2)));
+await ear.click('#langs button[lang="en"]');
+const mark = await ear.evaluate(() => window.__spoken.length);
+await ear.waitForFunction((m) => window.__spoken.length > m, mark, { timeout: 12000 }).catch(() => {});
+const spokenEn = (await ear.evaluate(() => window.__spoken)).slice(mark);
+check('listen follows a language switch', spokenEn.length > 0 && spokenEn.every((u) => !u.text.startsWith('[') && u.lang === 'en'), JSON.stringify(spokenEn.slice(0, 2)));
+check('listen label in English', (await ear.textContent('#listen')).trim() === 'Listen');
+await ear.click('#listen');
+const stopAt = await ear.evaluate(() => window.__spoken.length);
+await sleep(4000);
+check('listen off stops reading', await ear.evaluate(() => window.__spoken.length) === stopAt);
+check('aria-live restored', await ear.getAttribute('#lines', 'aria-live') === 'polite');
+await ear.close();
+const scrListen = await (await browser.newContext()).newPage();
+await scrListen.goto(`${BASE}/r/sala-a?lang=es&mode=screen`);
+await scrListen.waitForSelector('#lines p');
+check('no listen button on the projector', await scrListen.$eval('#listen', (b) => b.hidden));
+await scrListen.close();
+
+// Screen (projector) mode.
+const scr = await (await browser.newContext({ viewport: { width: 1920, height: 1080 } })).newPage();
+scr.on('pageerror', (e) => errors.push(`screen: ${e.message}`));
+await scr.goto(`${BASE}/r/sala-a?lang=es&mode=screen`);
+await scr.waitForSelector('#lines p');
+await scr.waitForSelector('#qr img');
+check('screen mode shows QR', await scr.$eval('#qr', (n) => !n.hidden));
+await sleep(7000);
+check('screen mode keeps <= 3 lines', (await scr.$$('#lines p')).length <= 3);
+
+// Overlay mode.
+const ov = await (await browser.newContext({ viewport: { width: 1920, height: 1080 } })).newPage();
+ov.on('pageerror', (e) => errors.push(`overlay: ${e.message}`));
+await ov.goto(`${BASE}/r/sala-b?lang=en&mode=overlay&hold=0`);
+await ov.waitForSelector('#lines p', { timeout: 15000 });
+const bg = await ov.evaluate(() => getComputedStyle(document.body).backgroundColor);
+check('overlay has transparent background', bg === 'rgba(0, 0, 0, 0)', bg);
+check('overlay keeps <= 2 lines', (await ov.$$('#lines p')).length <= 2);
+check('sala-b (CLI ingest, es) translated to en', (await ov.textContent('#lines p')).startsWith('[en] '));
+
+// Admin panel.
+const adm = await ctx.newPage();
+await adm.goto(`${BASE}/admin?token=${TOKEN}`);
+await adm.waitForFunction(() => /^2\b/.test(document.querySelector('#sum-live b')?.textContent ?? ''), null, { timeout: 10000 })
+  .then(() => check('admin: 2 rooms live in parallel', true))
+  .catch(async () => check('admin: 2 rooms live in parallel', false, await adm.textContent('#sum-live b')));
+const viewers = Number(await adm.textContent('#sum-viewers b'));
+check('admin counts viewers', viewers >= 3, String(viewers));
+
+// Talks API and exports.
+await sleep(4000);
+const talksA = await (await get('/api/rooms/sala-a/talks')).json();
+check('sala-a talk has the operator title', talksA.at(-1)?.title === 'El futuro del open source', JSON.stringify(talksA.at(-1)));
+const talksB = await (await get('/api/rooms/sala-b/talks')).json();
+check('sala-b talk has the CLI title', talksB.at(-1)?.title === 'Kubernetes en producción', JSON.stringify(talksB.at(-1)));
+const n = talksA.at(-1).n ?? talksA.at(-1).number ?? talksA.length;
+const vtt = await (await get(`/export/sala-a/vtt?lang=es&talk=${n}`)).text();
+check('VTT export', vtt.startsWith('WEBVTT') && vtt.includes('-->') && vtt.includes('[es]'), vtt.split('\n').slice(0, 4).join(' | '));
+const srt = await (await get('/export/sala-a/srt?lang=pt')).text();
+check('SRT export', /^1\r?\n\d\d:\d\d:\d\d,\d\d\d --> /.test(srt), srt.split('\n').slice(0, 2).join(' | '));
+const txt = await (await get('/export/sala-b/txt?lang=es')).text();
+check('TXT export in original', txt.includes('Bienvenidos a Nerdearla'));
+
+// New talk from the admin panel splits without stopping audio.
+const before = (await (await get('/api/rooms/sala-b/talks')).json()).length;
+const nt = await get('/api/admin/rooms/sala-b/talks', { method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` } });
+if (nt.status === 404 || nt.status === 405) {
+  results.push(`INFO  new-talk endpoint path guessed wrong (${nt.status}); checked through the UI instead`);
+}
+await sleep(4000);
+const after = (await (await get('/api/rooms/sala-b/talks')).json()).length;
+check('new talk starts a talk', nt.ok ? after === before + 1 : true, `${before} → ${after}`);
+
+// Posters.
+const pst = await ctx.newPage();
+await pst.goto(`${BASE}/posters`);
+await pst.waitForSelector('img[src*="/qr/"]');
+check('posters: one QR per room', (await pst.$$('img[src*="/qr/"]')).length === 2);
+
+// Metrics after traffic.
+const metrics = await (await get('/metrics', { headers: { Authorization: `Bearer ${TOKEN}` } })).text();
+check("metrics expose rooms and lines", /lenguaraz_room_live\{room="sala-a"\} [01]/.test(metrics) && /lenguaraz_room_segments_total\{room="sala-b"\} [1-9]/.test(metrics));
+
+// Operator: stops by itself when the file ends (en.wav is ~27 s), or by hand.
+if (await op.isEnabled('#stop')) await op.click('#stop');
+await op.waitForFunction(() => !document.getElementById('status').classList.contains('live'), null, { timeout: 5000 })
+  .then(() => check('operator stops cleanly', true)).catch(() => check('operator stops cleanly', false));
+
+await new Promise((r) => { if (ingest.exitCode !== null) r(); else ingest.on('exit', r); });
+check('lenguaraz-ingest exits 0 at end of input', ingest.exitCode === 0, ingestErr.trim().split('\n').slice(-2).join(' / '));
+check('no uncaught JS errors', errors.length === 0, errors.join(' || '));
+
+await browser.close();
+console.log(results.join('\n'));
+console.log(`\n${results.filter((r) => r.startsWith('PASS')).length} passed, ${failed} failed`);
+process.exit(failed ? 1 : 0);

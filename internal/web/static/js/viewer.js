@@ -13,7 +13,7 @@ const UI = {
     'theme-contrast': 'Alto contraste', 'theme-contrast-hint': 'Blanco y amarillo sobre negro',
     text: 'Texto', spacing: 'Más espacio entre letras y líneas', 'spacing-hint': 'Puede ayudar con dislexia o baja visión',
     'show-original': 'Mostrar el original debajo de la traducción', untranslated: '(sin traducir)',
-    live: 'En vivo', offline: 'Sin transmisión', download: 'Descargar la transcripción', 'this-talk': 'Esta charla', 'whole-room': 'Toda la sala', notfound: 'No encontramos esa sala.',
+    live: 'En vivo', offline: 'Sin transmisión', download: 'Descargar la transcripción', 'this-talk': 'Esta charla', 'whole-room': 'Toda la sala', notfound: 'No encontramos esa sala.', listen: 'Escuchar',
   },
   en: {
     back: '‹ Rooms', language: 'Language', settings: 'Reading settings', 'settings-short': 'Settings', captions: 'Captions',
@@ -24,7 +24,7 @@ const UI = {
     'theme-contrast': 'High contrast', 'theme-contrast-hint': 'White and yellow on black',
     text: 'Text', spacing: 'More space between letters and lines', 'spacing-hint': 'Can help with dyslexia or low vision',
     'show-original': 'Show the original under the translation', untranslated: '(not translated)',
-    live: 'Live', offline: 'Not streaming', download: 'Download the transcript', 'this-talk': 'This talk', 'whole-room': 'The whole room', notfound: 'We could not find that room.',
+    live: 'Live', offline: 'Not streaming', download: 'Download the transcript', 'this-talk': 'This talk', 'whole-room': 'The whole room', notfound: 'We could not find that room.', listen: 'Listen',
   },
   pt: {
     back: '‹ Salas', language: 'Idioma', settings: 'Ajustes de leitura', 'settings-short': 'Ajustes', captions: 'Legendas',
@@ -35,7 +35,7 @@ const UI = {
     'theme-contrast': 'Alto contraste', 'theme-contrast-hint': 'Branco e amarelo sobre preto',
     text: 'Texto', spacing: 'Mais espaço entre letras e linhas', 'spacing-hint': 'Pode ajudar com dislexia ou baixa visão',
     'show-original': 'Mostrar o original abaixo da tradução', untranslated: '(sem tradução)',
-    live: 'Ao vivo', offline: 'Sem transmissão', download: 'Baixar a transcrição', 'this-talk': 'Esta palestra', 'whole-room': 'A sala inteira', notfound: 'Não encontramos essa sala.',
+    live: 'Ao vivo', offline: 'Sem transmissão', download: 'Baixar a transcrição', 'this-talk': 'Esta palestra', 'whole-room': 'A sala inteira', notfound: 'Não encontramos essa sala.', listen: 'Ouvir',
   },
   fr: {
     back: '‹ Salles', language: 'Langue', settings: 'Réglages de lecture', 'settings-short': 'Réglages', captions: 'Sous-titres',
@@ -47,7 +47,7 @@ const UI = {
     text: 'Texte', spacing: "Plus d'espace entre les lettres et les lignes", 'spacing-hint': 'Peut aider en cas de dyslexie ou de basse vision',
     'show-original': "Afficher l'original sous la traduction", untranslated: '(non traduit)',
     live: 'En direct', offline: 'Pas de diffusion', download: 'Télécharger la transcription', 'this-talk': 'Cette conférence', 'whole-room': 'Toute la salle',
-    notfound: 'Salle introuvable.',
+    notfound: 'Salle introuvable.', listen: 'Écouter',
   },
   de: {
     back: '‹ Säle', language: 'Sprache', settings: 'Leseeinstellungen', 'settings-short': 'Einstellungen', captions: 'Untertitel',
@@ -59,7 +59,7 @@ const UI = {
     text: 'Text', spacing: 'Mehr Abstand zwischen Buchstaben und Zeilen', 'spacing-hint': 'Kann bei Legasthenie oder Sehschwäche helfen',
     'show-original': 'Original unter der Übersetzung anzeigen', untranslated: '(nicht übersetzt)',
     live: 'Live', offline: 'Keine Übertragung', download: 'Transkript herunterladen', 'this-talk': 'Dieser Vortrag', 'whole-room': 'Der ganze Saal',
-    notfound: 'Diesen Saal gibt es nicht.',
+    notfound: 'Diesen Saal gibt es nicht.', listen: 'Anhören',
   },
   it: {
     back: '‹ Sale', language: 'Lingua', settings: 'Impostazioni di lettura', 'settings-short': 'Impostazioni', captions: 'Sottotitoli',
@@ -71,7 +71,7 @@ const UI = {
     text: 'Testo', spacing: 'Più spazio tra lettere e righe', 'spacing-hint': 'Può aiutare con dislessia o ipovisione',
     'show-original': "Mostra l'originale sotto la traduzione", untranslated: '(non tradotto)',
     live: 'In diretta', offline: 'Nessuna trasmissione', download: 'Scarica la trascrizione', 'this-talk': 'Questo talk', 'whole-room': 'Tutta la sala',
-    notfound: 'Sala non trovata.',
+    notfound: 'Sala non trovata.', listen: 'Ascolta',
   },
 };
 
@@ -234,6 +234,7 @@ function renderLangs() {
     b.setAttribute('aria-pressed', String(l === lang));
     b.onclick = () => {
       lang = l;
+      hush();
       params.set('lang', l);
       history.replaceState(null, '', `?${params}`);
       renderAll();
@@ -313,6 +314,7 @@ async function main() {
   $('title').textContent = room.title;
   wirePrefs();
   wireFollow();
+  wireListen();
   setLive(room.live);
   renderAll();
   showQR();
@@ -327,6 +329,7 @@ async function main() {
     interim = '';
     renderLines({ fresh });
     if (fresh) freshText();
+    if (fresh && caughtUp) speak(seg);
   });
   events.addEventListener('interim', (e) => {
     interim = JSON.parse(e.data).text;
@@ -356,6 +359,90 @@ async function main() {
   });
   events.addEventListener('caught-up', () => { caughtUp = true; });
   events.onerror = () => { setLive(false); caughtUp = false; };
+}
+
+// ---------- listen: the phone reads the captions aloud ----------
+// With headphones this turns the captions into simultaneous interpretation,
+// using the voices the reader's device already has: no server cost, and
+// nothing leaves the phone. Off on every load, since browsers only let a
+// page speak after a tap.
+const speech = window.speechSynthesis;
+const queue = []; // lines waiting to be read, oldest first
+let listening = false;
+let current; // the utterance being read, if any
+let wakeLock;
+
+function wireListen() {
+  if (mode !== 'mobile' || !speech || !window.SpeechSynthesisUtterance) return;
+  $('listen').hidden = false;
+  $('listen').onclick = () => setListening(!listening);
+  document.addEventListener('visibilitychange', () => { if (listening && document.visibilityState === 'visible') keepAwake(); });
+}
+
+function setListening(on) {
+  listening = on;
+  $('listen').setAttribute('aria-pressed', String(on));
+  // Screen readers would otherwise announce every line on top of the voice.
+  $('lines').setAttribute('aria-live', on ? 'off' : 'polite');
+  hush();
+  if (on) {
+    // iOS only lets a page speak once it has spoken inside a tap: start
+    // with the last line, or a silent one before the talk begins.
+    const last = [...segments.values()].sort((a, b) => a.id - b.id).at(-1);
+    if (last) speak(last);
+    if (!current) {
+      const primer = new SpeechSynthesisUtterance(' ');
+      primer.volume = 0;
+      speech.speak(primer);
+    }
+    keepAwake();
+  } else {
+    wakeLock?.release().catch(() => {});
+    wakeLock = undefined;
+  }
+}
+
+function hush() {
+  queue.length = 0;
+  current = undefined;
+  // Chrome may swallow a speak() that follows cancel() on an idle engine.
+  if (speech?.speaking || speech?.pending) speech.cancel();
+}
+
+function speak(seg) {
+  if (!listening) return;
+  const translated = seg.lang === lang ? seg.text : seg.translations?.[lang];
+  if (!translated) return; // never read a line in a language the reader did not pick
+  queue.push(translated);
+  // Stay live: when the talk runs ahead of the voice, drop the oldest lines.
+  while (queue.length > 3) queue.shift();
+  if (!current) next();
+}
+
+function next() {
+  current = undefined;
+  const text = queue.shift();
+  if (!text || !listening) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = lang;
+  const voice = pickVoice(lang);
+  if (voice) u.voice = voice;
+  // Catch up by reading faster while lines are waiting.
+  u.rate = Math.min(1 + 0.15 * queue.length, 1.45);
+  // Ignore the end of an utterance that hush() already cancelled.
+  u.onend = u.onerror = () => { if (current === u) next(); };
+  current = u;
+  speech.speak(u);
+}
+
+function pickVoice(code) {
+  const voices = speech.getVoices().filter((v) => v.lang.toLowerCase().replace('_', '-').startsWith(code));
+  return voices.find((v) => v.localService && v.default) ?? voices.find((v) => v.localService) ?? voices[0];
+}
+
+// Phones pause the page when the screen turns off; keep it on while listening.
+async function keepAwake() {
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { /* not supported or denied */ }
 }
 
 // ---------- hold: fade out after silence ----------

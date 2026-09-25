@@ -42,7 +42,7 @@ type Options struct {
 	Server string // base URL, e.g. https://subs.example.org
 	Room   string
 	Token  string
-	// Lang is the language spoken on stage (en, es, pt); empty keeps the
+	// Lang is the language spoken on stage (en, es, pt, fr, de, it); empty keeps the
 	// room's current one.
 	Lang string
 	// Talk titles the talk; a new title starts a new talk in the room's

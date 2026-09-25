@@ -13,6 +13,8 @@ once. Built for the [Nerdearla](https://nerdear.la) 2026 Vibeathon.
 
 📖 **[Leer en español](README.es.md)**: guía de despliegue para organizadores.
 
+![A talk in English reaches every phone in the room, translated to Spanish](docs/screenshots/hero.png)
+
 ## What it does
 
 - One **operator page per room** captures a microphone / line-in from the
@@ -34,6 +36,12 @@ once. Built for the [Nerdearla](https://nerdear.la) 2026 Vibeathon.
   high-contrast colors, wider letter and line spacing (WCAG 1.4.12), and a
   bilingual mode that shows the original under each translated line. The
   page's own interface follows the caption language.
+- **Listen mode**: with headphones, the audience's phone reads each new
+  line aloud in the chosen language with the device's own voices, turning
+  the captions into simultaneous interpretation for blind and low-vision
+  attendees or anyone who prefers to listen. No server cost, nothing leaves
+  the phone, and it stays live by reading faster or skipping ahead when the
+  talk outruns the voice.
 - **Transcripts per talk**: every room's transcript is split into talks, and
   each talk downloads as **VTT, SRT or TXT** with times starting at zero,
   ready to publish next to the talk's recording.
@@ -41,6 +49,12 @@ once. Built for the [Nerdearla](https://nerdear.la) 2026 Vibeathon.
   recognizer activity, audience, latency and errors, lets the team start a
   new talk, and exports **Prometheus metrics** for alerting.
 - **Printable A4 posters** with each room's QR for doors and seats.
+
+<p>
+  <img src="docs/screenshots/phone.png" alt="Audience page on a phone: live captions in Spanish, language switch, Listen and Settings buttons" height="360">
+  <img src="docs/screenshots/projector.png" alt="Stage screen: the last three lines in huge type with the room's QR code" height="360">
+</p>
+<img src="docs/screenshots/admin.png" alt="Production panel: two rooms live, audience, audio level, latency and errors per room" width="720">
 
 ## Quick start
 
@@ -289,6 +303,10 @@ bar) on every theme.
   `0` from `O`, and stays compact enough to fit a caption line on a phone.
   It ships inside the binary, so pages make no third-party requests: the
   audience is not tracked and the site works on an isolated venue network.
+- **Listen** reads new lines aloud with the browser's speech synthesis in
+  the caption language; while it is on, the `aria-live` region goes quiet
+  so screen readers do not announce each line twice, and a screen wake lock
+  keeps the phone from pausing the page.
 - **Reader settings**, remembered per device: 4 text sizes, colors (device,
   light, dark, high contrast), wider letter and line spacing, and the
   original under each translation.
@@ -301,6 +319,7 @@ bar) on every theme.
 
 ```bash
 go test -race ./...
+(cd e2e && npm install && npx playwright install chromium && npm test)  # browser end-to-end suite
 go run ./cmd/lenguaraz -fake &                 # scripted engines
 head -c 960000 /dev/zero | go run ./cmd/lenguaraz-ingest -room sala-a -realtime  # 30 s of fake captions
 samples/make-samples.sh          # regenerate the Piper TTS samples (Docker + ffmpeg)
@@ -317,6 +336,7 @@ the binary):
 | `cmd/lenguaraz` | the server |
 | `cmd/lenguaraz-ingest` | stream a stage's audio into a room without a browser |
 | `cmd/asr-smoke` | stream PCM from stdin to Gemini Live and print the events |
+| `promo` | the promo video, as code ([Remotion](https://www.remotion.dev)) |
 | `internal/asr` | speech to text: Gemini Live, Whisper-compatible servers, a fake |
 | `internal/translate` | text translation: Gemini, OpenAI-compatible chat, a fake |
 | `internal/room` | one stage's pipeline, talks, status and viewer fan-out |
