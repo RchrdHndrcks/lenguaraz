@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lenguaraz</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/inclusive-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/prefs.js"></script>
+</head>
+<body data-mode="mobile">
+  <div class="viewer-bar only-mobile">
+    <header class="header">
+      <div class="header-inner">
+        <a class="back" href="/" data-i18n="back">‹ Salas</a>
+        <span id="title" class="title"></span>
+        <span id="status" class="status">…</span>
+      </div>
+    </header>
+    <div class="controls">
+      <div id="langs" class="langs" role="group" data-i18n-label="language"></div>
+      <button id="prefs-open" class="button secondary" type="button" aria-haspopup="dialog" data-i18n="settings-short">Ajustes</button>
+    </div>
+  </div>
+
+  <p class="screen-tag only-screen"><b id="screen-title"></b></p>
+
+  <main id="main" class="stage">
+    <section id="captions" data-i18n-label="captions">
+      <p id="empty" class="empty" hidden><strong data-i18n="waiting-title">Todavía no hay subtítulos</strong><span data-i18n="waiting">Van a aparecer acá apenas empiece la charla.</span></p>
+      <div id="lines" aria-live="polite"></div>
+      <p id="interim" aria-hidden="true"></p>
+    </section>
+  </main>
+
+  <aside id="qr" class="qr only-screen" hidden>
+    <img alt="" width="200" height="200">
+    <p data-i18n="scan">Escaneá para leer en tu idioma</p>
+  </aside>
+
+  <button id="follow" class="button follow" type="button" hidden data-i18n="follow">↓ Ir a lo último</button>
+
+  <footer class="downloads only-mobile">
+    <h2 data-i18n="download">Descargar la transcripción</h2>
+    <div id="exports"></div>
+  </footer>
+
+  <dialog id="prefs" class="settings" aria-labelledby="prefs-title">
+    <form method="dialog">
+      <div class="dialog-head">
+        <h2 id="prefs-title" data-i18n="settings">Ajustes de lectura</h2>
+        <button class="button secondary" value="close" data-i18n="close">Cerrar</button>
+      </div>
+      <fieldset>
+        <legend data-i18n="size">Tamaño del texto</legend>
+        <div id="sizes" class="sizes">
+          <button type="button" data-size="0" data-i18n-label="size-0" style="font-size:1rem">A</button>
+          <button type="button" data-size="1" data-i18n-label="size-1" style="font-size:1.25rem">A</button>
+          <button type="button" data-size="2" data-i18n-label="size-2" style="font-size:1.5rem">A</button>
+          <button type="button" data-size="3" data-i18n-label="size-3" style="font-size:1.8rem">A</button>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend data-i18n="colors">Colores</legend>
+        <label class="radio"><input type="radio" name="theme" value="auto"><span data-i18n="theme-auto">Como el dispositivo</span></label>
+        <label class="radio"><input type="radio" name="theme" value="light"><span data-i18n="theme-light">Fondo claro</span></label>
+        <label class="radio"><input type="radio" name="theme" value="dark"><span data-i18n="theme-dark">Fondo oscuro</span></label>
+        <label class="radio"><input type="radio" name="theme" value="contrast"><span><span data-i18n="theme-contrast">Alto contraste</span><small data-i18n="theme-contrast-hint">Blanco y amarillo sobre negro</small></span></label>
+      </fieldset>
+      <fieldset>
+        <legend data-i18n="text">Texto</legend>
+        <label class="checkbox"><input type="checkbox" id="pref-spacing"><span><span data-i18n="spacing">Más espacio entre letras y líneas</span><small data-i18n="spacing-hint">Puede ayudar con dislexia o baja visión</small></span></label>
+        <label class="checkbox" id="orig-row"><input type="checkbox" id="pref-orig"><span data-i18n="show-original">Mostrar el original debajo de la traducción</span></label>
+      </fieldset>
+    </form>
+  </dialog>
+  <script type="module" src="/static/js/viewer.js"></script>
+</body>
+</html>
