@@ -25,6 +25,15 @@ The frontend lives in `internal/web/static`: plain HTML, CSS and JavaScript
 modules, no build step, embedded in the binary. Reload the page after an
 edit and restart the server.
 
+For frontend changes, run the browser end-to-end suite too: it streams a
+sample from the operator page and from `lenguaraz-ingest` into two rooms
+and checks the audience page, reading settings, listen mode, projector,
+overlay, production panel, exports and metrics.
+
+```bash
+cd e2e && npm install && npx playwright install chromium && npm test
+```
+
 To try the real models, set `GEMINI_API_KEY`, or point `ASR_URL` and
 `TRANSLATE_URL` at local servers (see the README).
 
