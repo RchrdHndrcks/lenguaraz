@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/gorilla/websocket v1.5.3
-	google.golang.org/genai v1.71.0
+	google.golang.org/genai v1.72.0
 	gopkg.in/yaml.v3 v3.0.1
 	rsc.io/qr v0.2.0
 )
